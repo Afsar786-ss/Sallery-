@@ -8,64 +8,79 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Android App
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Repository Files
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-- name: Setup Android SDK
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 35
-          build-tools: 35.0.0
           accept-android-sdk-licenses: true
-      
 
-      - name: Accept Android Licenses
+      - name: Accept SDK Licenses
         shell: bash
         run: |
-          SDKMANAGER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" -type f -name sdkmanager 2>/dev/null | head -n 1)"
-          if [ -z "$SDKMANAGER" ]; then
-            echo "ERROR: Android SDK Manager not found"
+          set -e
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK_ROOT" ]; then
+            echo "Android SDK path not found"
             exit 1
           fi
-          yes | "$SDKMANAGER" --licenses
 
-      - name: Install Required SDK Packages
+          SDKMANAGER="$(find "$SDK_ROOT" -type f -name sdkmanager 2>/dev/null | head -n 1)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses || true
+
+      - name: Install Android SDK Packages
         shell: bash
         run: |
-          SDKMANAGER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" -type f -name sdkmanager 2>/dev/null | head -n 1)"
-          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          set -e
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          SDKMANAGER="$(find "$SDK_ROOT" -type f -name sdkmanager 2>/dev/null | head -n 1)"
 
-      - name: Verify Project ZIP
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Check Project ZIP
         shell: bash
         run: |
-          test -f Afsar_Mobile_Paise_Ka_Hisab_Project.zip || {
-            echo "ERROR: Project ZIP not found in repository root"
+          if [ ! -f "Afsar_Mobile_Paise_Ka_Hisab_Project.zip" ]; then
+            echo "Project ZIP missing. Files in repository:"
             ls -la
             exit 1
-          }
+          fi
 
-      - name: Extract Android Project
+      - name: Extract Project
         run: |
           unzip -o Afsar_Mobile_Paise_Ka_Hisab_Project.zip -d project
 
-      - name: Verify Gradle Project
+      - name: Check Android Project
         run: |
-          test -f project/AfsarMobileAndroidProject/app/build.gradle || {
-            echo "ERROR: Android app build.gradle not found"
-            find project -maxdepth 4 -type f
-            exit 1
-          }
+          test -f project/AfsarMobileAndroidProject/app/build.gradle
+          echo "Android project found"
 
-      - name: Build Debug APK
+      - name: Build APK
         run: |
           gradle -p project/AfsarMobileAndroidProject assembleDebug --no-daemon
 
