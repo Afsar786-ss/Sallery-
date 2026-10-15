@@ -8,13 +8,14 @@ permissions:
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -25,33 +26,55 @@ jobs:
         with:
           gradle-version: '8.9'
 
-           - name: Setup Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools'
+          cmdline-tools-version: '11076708'
+          accept-android-sdk-licenses: true
 
-
-      - name: Accept Android Licenses
+      - name: Accept Android SDK Licenses
         shell: bash
         run: |
-          yes | sdkmanager --licenses || true
+          set -e
+          yes | sdkmanager --licenses
 
-      - name: Install Required Android Packages
+      - name: Install Android SDK Packages
         shell: bash
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          set -e
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
-      - name: Check Project ZIP
+      - name: Verify Project ZIP
+        shell: bash
         run: |
-          test -f Afsar_Mobile_Paise_Ka_Hisab_Project.zip
+          if [ ! -f "Afsar_Mobile_Paise_Ka_Hisab_Project.zip" ]; then
+            echo "ERROR: Project ZIP not found in repository root."
+            ls -la
+            exit 1
+          fi
 
-      - name: Extract Project
+      - name: Extract Android Project
         run: |
           unzip -o Afsar_Mobile_Paise_Ka_Hisab_Project.zip -d project
 
-      - name: Build APK
+      - name: Verify Android Project
+        shell: bash
         run: |
-          gradle -p project/AfsarMobileAndroidProject assembleDebug --no-daemon
+          if [ ! -f "project/AfsarMobileAndroidProject/app/build.gradle" ]; then
+            echo "ERROR: Android project files not found."
+            find project -maxdepth 4 -type f
+            exit 1
+          fi
+
+      - name: Build Debug APK
+        run: |
+          gradle \
+            -p project/AfsarMobileAndroidProject \
+            assembleDebug \
+            --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -59,3 +82,4 @@ jobs:
           name: Afsar-Mobile-Hisab-APK
           path: project/AfsarMobileAndroidProject/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 7
