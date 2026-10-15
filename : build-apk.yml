@@ -8,14 +8,13 @@ permissions:
 
 jobs:
   build:
-    name: Build Android App
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -28,57 +27,24 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
 
-      - name: Accept SDK Licenses
+      - name: Accept Android Licenses
         shell: bash
         run: |
-          set -e
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          if [ -z "$SDK_ROOT" ]; then
-            echo "Android SDK path not found"
-            exit 1
-          fi
+          yes | sdkmanager --licenses || true
 
-          SDKMANAGER="$(find "$SDK_ROOT" -type f -name sdkmanager 2>/dev/null | head -n 1)"
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            exit 1
-          fi
-
-          yes | "$SDKMANAGER" --licenses || true
-
-      - name: Install Android SDK Packages
+      - name: Install Required Android Packages
         shell: bash
         run: |
-          set -e
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          SDKMANAGER="$(find "$SDK_ROOT" -type f -name sdkmanager 2>/dev/null | head -n 1)"
-
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Check Project ZIP
-        shell: bash
         run: |
-          if [ ! -f "Afsar_Mobile_Paise_Ka_Hisab_Project.zip" ]; then
-            echo "Project ZIP missing. Files in repository:"
-            ls -la
-            exit 1
-          fi
+          test -f Afsar_Mobile_Paise_Ka_Hisab_Project.zip
 
       - name: Extract Project
         run: |
           unzip -o Afsar_Mobile_Paise_Ka_Hisab_Project.zip -d project
-
-      - name: Check Android Project
-        run: |
-          test -f project/AfsarMobileAndroidProject/app/build.gradle
-          echo "Android project found"
 
       - name: Build APK
         run: |
@@ -90,4 +56,3 @@ jobs:
           name: Afsar-Mobile-Hisab-APK
           path: project/AfsarMobileAndroidProject/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 7
