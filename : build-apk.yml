@@ -1,45 +1,74 @@
-
 name: Build Afsar Mobile Hisab APK
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Download Repository Files
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Install Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Setup Android SDK
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept licenses and install SDK
+      - name: Accept Android Licenses
+        shell: bash
         run: |
-          SDKMANAGER=$(find "$ANDROID_HOME" -type f -name sdkmanager | head -n 1)
-          yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" -type f -name sdkmanager 2>/dev/null | head -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: Android SDK Manager not found"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses
 
-      - name: Extract project ZIP
-        run: unzip -o Afsar_Mobile_Paise_Ka_Hisab_Project.zip -d project
+      - name: Install Required SDK Packages
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" -type f -name sdkmanager 2>/dev/null | head -n 1)"
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Build APK
-        run: gradle -p project/AfsarMobileAndroidProject assembleDebug
+      - name: Verify Project ZIP
+        shell: bash
+        run: |
+          test -f Afsar_Mobile_Paise_Ka_Hisab_Project.zip || {
+            echo "ERROR: Project ZIP not found in repository root"
+            ls -la
+            exit 1
+          }
+
+      - name: Extract Android Project
+        run: |
+          unzip -o Afsar_Mobile_Paise_Ka_Hisab_Project.zip -d project
+
+      - name: Verify Gradle Project
+        run: |
+          test -f project/AfsarMobileAndroidProject/app/build.gradle || {
+            echo "ERROR: Android app build.gradle not found"
+            find project -maxdepth 4 -type f
+            exit 1
+          }
+
+      - name: Build Debug APK
+        run: |
+          gradle -p project/AfsarMobileAndroidProject assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Afsar-Mobile-Hisab-APK
           path: project/AfsarMobileAndroidProject/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
