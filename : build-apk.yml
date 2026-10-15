@@ -20,9 +20,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Install Android SDK
+- name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 35
+          build-tools: 35.0.0
+          accept-android-sdk-licenses: true
+      
 
       - name: Accept Android Licenses
         shell: bash
